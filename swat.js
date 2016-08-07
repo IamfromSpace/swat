@@ -75,28 +75,34 @@ const tests = {
   test5: () => Promise.resolve(false),
 }
 
+//Alternate syntax demo, but I think this doesn't look as nice.
+//This won't actually work if passed into run.
 const testsAsTuples = [
   ['returns undefined', () => {
     //do something
     //do something else
     return true;
   }],
+
   ['test1', () => {
     //do something
     //do something else
     return true || 'this better not fail!';
   }],
+
   ['test2', () => {
     //do something
     //do something else
     return false;
   }],
+
   ['suite2', [
     ['test6', () => {
       //do something
       //do something else
       return 'hey' === 'ho' || 'nested in a suite';
     }],
+
     ['suite3', [
       ['test7', () => {
         //do something
