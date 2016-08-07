@@ -10,7 +10,7 @@ const asyncReduce = (list, init, asyncFunc) => {
 }
 
 const nanoNow = () => {
-  n = process.hrtime()
+  const n = process.hrtime()
   return n[0]*1000 + n[1] / 1000000;
 }
 
@@ -59,7 +59,7 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
 const run = runFull(nanoNow)([],[])
 
 const assertMany = list => {
-  if (list.length === 0) return 'no assertions!'
+  if (list && list.length === 0) return 'no assertions!'
   const error = list.find(assertion => assertion !== true)
   return typeof error === 'undefined' ? true : error;
 }
