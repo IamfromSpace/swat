@@ -14,6 +14,8 @@ const nanoNow = () => {
   return n[0]*1000 + n[1] / 1000000;
 }
 
+const returnPrevious = func => a => func().then(() =>a);
+
 // LIB
 
 const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
@@ -40,19 +42,21 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
   const testAndSuiteTuples = Object.keys(testObj)
     .filter(key => !hooks.find(hook => hook === key))
     .map(key => [key, testObj[key]])
-  return asyncReduce(testAndSuiteTuples, {}, (prev, [name, tos]) => (typeof tos === 'function'
-    ? asyncReduce(beforeEaches, null, (_, be) => Promise.resolve(be()))
-      .then(() => runTest(now)(tos))
-      .then(result => asyncReduce(afterEaches, null, (_, ae) => Promise.resolve(ae()))
-        .then(() => result)
-      )
-    : typeof tos === 'object'
-      ? runFull(now)(beforeEaches, afterEaches)(tos)
-      : Promise.resolve({
-          result: 'fail',
-          error: 'All test object values must be a function (test) or an object (suite)',
-        })
-    ).then(result => Object.assign(prev, {[name]: result}))
+  return Promise.resolve(testObj.before && testObj.before())
+   .then(() => asyncReduce(testAndSuiteTuples, {}, (prev, [name, tos]) => (typeof tos === 'function'
+      ? asyncReduce(beforeEaches, null, (_, be) => Promise.resolve(be()))
+        .then(() => runTest(now)(tos))
+        .then(returnPrevious(() =>
+          asyncReduce(afterEaches, null, (_, ae) => Promise.resolve(ae()))
+        ))
+      : typeof tos === 'object'
+        ? runFull(now)(beforeEaches, afterEaches)(tos)
+        : Promise.resolve({
+            result: 'fail',
+            error: 'All test object values must be a function (test) or an object (suite)',
+          })
+      ).then(result => Object.assign({}, prev, {[name]: result}))
+    ).then(returnPrevious(() => Promise.resolve(testObj.after && testObj.after())))
   )
 }
 
@@ -159,10 +163,14 @@ const suites = {
 let str;
 
 const beforeEachTests = {
+  before: () => { console.log('b-a'); str = 'whaaaaaaa'; },
+  after: () => { console.log('a-a'); str = 'whaaaaaaa'; },
   afterEach: () => { console.log('ae-a'); str = 'scramble!'; },
   beforeEach: () => { console.log('be-a'); str = 'a'; },
   test1: () => { console.log('t-a'); return 't' + str; },
   hark: {
+    before: () => { console.log('b-b'); str = 'whaaaaaaa'; },
+    after: () => { console.log('a-b'); str = 'whaaaaaaa'; },
     afterEach: () => { console.log('ae-b'); str = 'scramble!'; },
     beforeEach: () => { console.log('be-b'); str = 'b'; },
     test2: () => { console.log('t-b'); return 't' + str; },
@@ -180,4 +188,4 @@ const beforeEachTests = {
   suite1: () => { console.log('t-a2'); return 't' + str + '2'; },
 }
 
-run(suites).then(console.log)
+run(beforeEachTests).then(console.log)
