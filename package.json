@@ -1,0 +1,19 @@
+{
+  "name": "swat",
+  "version": "0.1.0",
+  "description": "A composable, flexible, functional, and webpack-friendly unit testing framework.",
+  "main": "swat.js",
+  "scripts": {
+    "test": "node tests.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IamfromSpace/swat.git"
+  },
+  "author": "Nathan Fairhurst",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/IamfromSpace/swat/issues"
+  },
+  "homepage": "https://github.com/IamfromSpace/swat#readme"
+}
