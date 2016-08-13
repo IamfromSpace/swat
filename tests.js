@@ -120,4 +120,25 @@ const beforeEachTests = {
   suite1: () => { console.log('t-a2'); return 't' + str + '2'; },
 }
 
-run(beforeEachTests).then(console.log)
+g = 0;
+
+//Context
+const contextTests = {
+  beforeEach: () => ({
+    something: 7,
+    somethingElse: 9,
+  }),
+  is_a_0: c => c.something == 7,
+  is_a_2: c => { console.log(c); return c.somethingElse == 9 },
+  suite_a: {
+    beforeEach: c => { c.somethingElse = 50; return c },
+    is_a_0: c => { console.log(c); c.somethingElse = 1; return c.something == 7; },
+    iaas_a_0: c => { console.log(c); return c.somethingElse == 50; },
+  },
+}
+
+
+run(beforeEachTests)
+  .then(r => JSON.stringify(r, null, 2))
+  .then(console.log)
+  .catch(console.log)

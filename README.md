@@ -111,3 +111,97 @@ run(myTestSuite).then(result => {
   });
 });
 ```
+
+## Writing Tests
+
+### Using Context with before/afterEach
+
+In Javascript it can be challenging to write tests because everything is mutable.  While the `const` keyword of ES6 has helped some, `const` only enforces that the _reference_ is never reassigned.  This is great for strings, floats, etc, but not very effective for objects or arrays.
+
+Other libraries such as Immutable and Mori have helped the community write more immutable code, but it doesn't make sense for a testing library to depend on the usage of these libraries.
+
+Variables that can mutate at any moment make it difficult to truly isolate test cases.  If one test result affects another, it can create unexpected results.  To solve this, Swat allows you to use build a new context for each test.
+
+Every `beforeEach` hook and `afterEach` hook is passed in a single argument, and expects a return value.  The return value becomes the input of the next hook, and is eventually passed into the test.
+
+Here is an example:
+
+```javascript
+// test file
+run({
+  beforeEach: (context) => {
+    return context || { a: 0 };
+  },
+  test1: (context) => {
+    context.a = 8;
+    context.b = 9;
+    return true;
+  },
+  test2: (context) => {
+    context.c = 12;
+    return true;
+  },
+  afterEach(context) => {
+    console.log(context);
+    return context;
+  },
+});
+
+// console output from afterEach
+{ a: 8, b: 9}
+{ a: 0, c: 12}
+```
+
+Note that the outermost beforeEach of a run will always have an `undefined` context.  This is because you must build a brand new context for each and every test.
+
+For nested tests, every `beforeEach` from its parent suites is excuted in order from parent to child, then the test is executed, and finally all `afterEach` hooks the parent suite is run from child to parent.
+
+Here is an example:
+
+```javascript
+// test file
+run({
+  beforeEach: (context) => {
+    return context || ["outer beforeEach"];
+  },
+  outerTest: (context) => {
+    context.push("outer test");
+    return true;
+  },
+  innerSuite: {
+    beforeEach: (context) => {
+      context.push(["inner beforeEach"]);
+      return context;
+    },
+    outerTest: (context) => {
+      context.push("inner test");
+      return true;
+    },
+    afterEach: (context) => {
+      context.push("inner afterEach");
+      return context;
+    },
+  },
+  afterEach: (context) => {
+    context.push("outer afterEach");
+    console.log(context);
+  },
+})
+
+
+// console output from outer afterEach
+["outer beforeEach", "outer test", "outer afterEach"]
+["outer beforeEach", "inner beforeEach", "inner test", "inner afterEach", "outer afterEach"]
+```
+
+### Other hooks
+
+Swat also includes `before` and `after` hooks.  These are executed before and then after the _entire_ suite (including nested suites and other hooks) run.  These hooks do _not_ recieve a context argument and return values are ignored.  They are intended to set global/module level variables that are not practical to new up for each test.
+
+Use these hooks sparingly; 99% of the time you can use context which is much much safer.
+
+## FAQ
+
+##### Why do `before` and `after` not recieve a context argument?
+
+The key to context, is that it is new for every single test.  If the before function created the context, then the same context would be passed to each beforeEach, which meant the same reference would propogate throught all tests--defeating the purpose.  A deep copy of a value returned by the `before` hook simply wouldn't be a robust enough solution.

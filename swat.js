@@ -20,10 +20,10 @@ const returnPrevious = func => a => func().then(() =>a);
 
 const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
 
-const runTest = now => test => {
+const runTest = now => context => test => {
   let r;
   const t = now();
-  try { r = Promise.resolve(test())
+  try { r = Promise.resolve(test(context))
     .then(result => result === true
       ? { result: 'pass', timeElapsed: now() - t }
       : { result: 'fail', error: result, timeElapsed: now() - t }
@@ -43,12 +43,13 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
     .filter(key => !hooks.find(hook => hook === key))
     .map(key => [key, testObj[key]])
   return Promise.resolve(testObj.before && testObj.before())
-   .then(() => asyncReduce(testAndSuiteTuples, {}, (prev, [name, tos]) => (typeof tos === 'function'
-      ? asyncReduce(beforeEaches, null, (_, be) => Promise.resolve(be()))
-        .then(() => runTest(now)(tos))
-        .then(returnPrevious(() =>
-          asyncReduce(afterEaches, null, (_, ae) => Promise.resolve(ae()))
-        ))
+    .then(() => asyncReduce(testAndSuiteTuples, {}, (prev, [name, tos]) => (typeof tos === 'function'
+      ? asyncReduce(beforeEaches, void(0), (prev, be) => Promise.resolve(be(prev)))
+        .then(context => runTest(now)(context)(tos)
+          .then(returnPrevious(() =>
+            asyncReduce(afterEaches, context, (prev, ae) => Promise.resolve(ae(prev)))
+          ))
+        )
       : typeof tos === 'object'
         ? runFull(now)(beforeEaches, afterEaches)(tos)
         : Promise.resolve({
