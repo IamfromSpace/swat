@@ -16,6 +16,10 @@ const nanoNow = () => {
 
 const returnPrevious = func => a => func().then(() =>a);
 
+const asPromise = fn => (...args) => args.length + 1 === fn.length
+  ? new Promise(done => fn(...args, done))
+  : Promise.resolve(fn(...args))
+
 // LIB
 
 const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
@@ -23,7 +27,7 @@ const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
 const runTest = now => context => test => {
   let r;
   const t = now();
-  try { r = Promise.resolve(test(context))
+  try { r = asPromise(test)(context)
     .then(result => result === true
       ? { result: 'pass', timeElapsed: now() - t }
       : { result: 'fail', error: result, timeElapsed: now() - t }
@@ -42,12 +46,12 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
   const testAndSuiteTuples = Object.keys(testObj)
     .filter(key => !hooks.find(hook => hook === key))
     .map(key => [key, testObj[key]])
-  return Promise.resolve(testObj.before && testObj.before())
+  return Promise.resolve(testObj.before ? asPromise(testObj.before)() : void(0))
     .then(() => asyncReduce(testAndSuiteTuples, {}, (prev, [name, tos]) => (typeof tos === 'function'
-      ? asyncReduce(beforeEaches, void(0), (prev, be) => Promise.resolve(be(prev)))
+      ? asyncReduce(beforeEaches, void(0), (prev, be) => asPromise(be)(prev))
         .then(context => runTest(now)(context)(tos)
           .then(returnPrevious(() =>
-            asyncReduce(afterEaches, context, (prev, ae) => Promise.resolve(ae(prev)))
+            asyncReduce(afterEaches, context, (prev, ae) => asPromise(ae)(prev))
           ))
         )
       : typeof tos === 'object'
@@ -57,7 +61,10 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
             error: 'All test object values must be a function (test) or an object (suite)',
           })
       ).then(result => Object.assign({}, prev, {[name]: result}))
-    ).then(returnPrevious(() => Promise.resolve(testObj.after && testObj.after())))
+    ).then(returnPrevious(() => testObj.after
+      ? asPromise(testObj.after)()
+      : Promise.resolve(void(0)))
+    )
   )
 }
 

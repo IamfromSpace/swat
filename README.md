@@ -194,11 +194,51 @@ run({
 ["outer beforeEach", "inner beforeEach", "inner test", "inner afterEach", "outer afterEach"]
 ```
 
-### Other hooks
+#### Other hooks
 
 Swat also includes `before` and `after` hooks.  These are executed before and then after the _entire_ suite (including nested suites and other hooks) run.  These hooks do _not_ recieve a context argument and return values are ignored.  They are intended to set global/module level variables that are not practical to new up for each test.
 
 Use these hooks sparingly; 99% of the time you can use context which is much much safer.
+
+### Async Testing
+
+Swat handles both callbacks and promises in testing.  You can return a promise in any test or hook.
+
+```javascript
+run({
+  beforeEach: () => {
+    return Promise.resolve('promise');
+  },
+
+  'test that returns a promise': (context) => {
+    return Promise.resolve(context === 'promise');
+  },
+});
+```
+
+Or you can use callbacks in any test or hook by using the `done` parameter.  In the before/after hooks `done` will be passed in as the first argument, and in all other functions it will be passed as the second.  This means that all callback based tests must accept context, but you do not have to use it.
+
+In the following example, `_` signifes that the parameter is ignored.  Both of the following tests will pass.
+
+```javascript
+run({
+  before: (done)  => {
+    setTimeout(() => { console.log('before'); done(); }, 1000);
+  },
+
+  beforeEach: (_, done) => {
+    setTimeout(() => { done('callback'); }, 1000);
+  },
+
+  'test using context': (context, done) => {
+    setTimeout(() => { done(context === 'callback'); }, 1000);
+  },
+
+  'test ignoring context': (_, done) => {
+    setTimeout(() => { done(true); }, 1000);
+  },
+});
+```
 
 ## FAQ
 

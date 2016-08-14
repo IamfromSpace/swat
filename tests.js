@@ -137,8 +137,43 @@ const contextTests = {
   },
 }
 
+//async
+const asyncTests = {
+  sync: {
+    before: () => { console.log('sync before') },
+    beforeEach: () => 'sync',
+    test: (c) => c === 'sync',
+    afterEach: (c) => { console.log('sync', c) },
+    after: () => { console.log('sync after') },
+  },
+  callback: {
+    before: (done) => {
+      setTimeout(() => { console.log('callback before'); done(); }, 1000);
+    },
+    beforeEach: (_, done) => {
+      setTimeout(() => done('callback'), 1000);
+    },
+    test: (c, done) => {
+      setTimeout(() => done(c === 'callback'), 1000);
+    },
+    afterEach: (c, done) => {
+      setTimeout(() => { console.log('callback', c); done(); }, 1000);
+    },
+    after: (done) => {
+      setTimeout(() => { console.log('callback after'); done(); }, 1000);
+    },
+  },
+  promise: {
+    before: () =>  new Promise(r => setTimeout(() => { console.log('promise before'); r(); }, 1000)),
+    beforeEach: () =>  new Promise(r => setTimeout(() => r('promise'), 1000)),
+    test: (c) =>  new Promise(r => setTimeout(() => r(c === 'promise'), 1000)),
+    afterEach: (c) =>  new Promise(r => setTimeout(() => { console.log('promise', c); r(); }, 1000)),
+    after: () =>  new Promise(r => setTimeout(() => { console.log('promise after'); r(); }, 1000)),
+  },
+}
 
-run(beforeEachTests)
+
+run(asyncTests)
   .then(r => JSON.stringify(r, null, 2))
   .then(console.log)
   .catch(console.log)
