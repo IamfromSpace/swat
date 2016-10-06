@@ -240,6 +240,51 @@ run({
 });
 ```
 
+### Middlewares
+
+Swat has support for "global" or "master" hooks that run directly before and after each test.  This enables measurement/notifications/etc of things that can only be performed at the time of test execution and need to run on every single test.  A good example is a timer middleware:
+
+```javascript
+const timer = {
+  before: (name) => {
+    return Date.now();
+  },
+  after: (testResult, beforeResult) => {
+    return Object.assign(
+      testResult,
+      { duration: Date.now() - beforeResult },
+    );
+  },
+};
+```
+
+The middleware is just an object with a `before` and `after` property.  The `before` property is a function that accepts one argument, the name of the test about to be executed and returns a value that will be forwarded to the `after` function.
+
+The `after` property is a function that accepts two arguments, the test result object, and the result returned by this middleware's `before` result for this test.  The return value of the `after` hook becomes the new test result.  Do _NOT_ mutate the test result; please return a new value.
+
+The `runFull` function accepts an array of middlewares and returns a `run` function:
+
+```javascript
+const runAndLogProgress = runFull([logProgress, timer]);
+runAndLogProgress(mySuite).then(result => {
+  ...
+});
+```
+
+The middlewares are executed in order before the test and then in reverse order after.  This means that time critical middlewares should be at the end of the list, as they will not be affected by others.  The total order of exection (assuming two middlewares) is as follows:
+
+1. suite's before
+1. suite's beforeEach
+1. middleware[0]'s before
+1. middleware[1]'s before
+1. test
+1. middleware[1]'s after
+1. middleware[0]'s after
+1. suite's afterEach
+1. suite's after
+
+Note that middlewares can be async and each middleware will wait on the next.  Middlewares can return a promise or use a callbacks--if it is supplied as an additional argument.
+
 ## FAQ
 
 ##### Why do `before` and `after` not recieve a context argument?
