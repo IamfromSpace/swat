@@ -31,33 +31,40 @@ const FAIL = 'fail';
 
 const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
 
-const injectName = name => obj => Object.assign({}, obj, { name });
-const injectDuration = (start, now) => obj => Object.assign({}, obj, { duration: now() - start });
+const createPass = name => ({ type: TEST, name, result: PASS });
+const createFail = (name, error) => ({ type: TEST, name, result: FAIL, error });
 
-const createPass = () => ({ type: TEST, result: PASS });
-const createFail = error => ({ type: TEST, result: FAIL, error });
-
-const runTest = now => context => test => {
-  let r;
-  const t = now();
-  try { r = asPromise(test)(context)
-    .then(result => result === true ? createPass() : createFail(result))
-  } catch(error) { r = Promise.resolve(createFail(error)); }
-  return r.then(injectDuration(t, now));
+const runTest = middlewares => context => (name, test) => {
+  return asyncReduce(
+    middlewares,
+    [],
+    (tuples, { before, after }) => asPromise(before)(name)
+      .then(middlewareBeforeResult => cons([middlewareBeforeResult, after], tuples))
+  ).then(beforeResultAfterFunctionTuples => {
+    let r;
+    try { r = asPromise(test)(context)
+      .then(result => result === true ? createPass(name) : createFail(name, result))
+    } catch(error) { r = Promise.resolve(createFail(error)); }
+    return r.then(result => asyncReduce(
+      beforeResultAfterFunctionTuples,
+      result,
+      (result, [middlewareBeforeResult, after]) => asPromise(after)(result, middlewareBeforeResult)
+    ));
+  })
 }
 
 const addResult = previousResults => result => {
-  switch (result.type) {
-    case TEST:
-      return Object.assign(previousResults, { tests: cons(result, previousResults.tests) });
-    case SUITE:
+switch (result.type) {
+  case TEST:
+    return Object.assign(previousResults, { tests: cons(result, previousResults.tests) });
+  case SUITE:
       return Object.assign(previousResults, { suites: cons(result, previousResults.suites) });
     default:
       throw Error("Trying to add a result of neither TEST nor SUITE type " + JSON.stringify(result, null, 2))
   }
 }
 
-const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
+const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => testObj => {
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -74,18 +81,17 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
         ? asyncReduce(beforeEaches, void(0), (prev, be) => asPromise(be)(prev))
-          .then(context => runTest(now)(context)(tos)
+          .then(context => runTest(middlewares)(context)(name, tos)
             .then(returnPrevious(() =>
               asyncReduce(afterEaches, context, (prev, ae) => asPromise(ae)(prev))
             ))
           )
         : typeof tos === 'object'
-          ? runFull(now)(beforeEaches, afterEaches)(tos)
+          ? runFull(middlewares)(beforeEaches, afterEaches)(tos)
           : Promise.resolve(
             createFail('All test object values must be a function (test) or an object (suite)')
           )
         )
-        .then(injectName(name))
         .then(addResult(prev))
     ).then(returnPrevious(() => testObj.after
       ? asPromise(testObj.after)()
@@ -94,7 +100,12 @@ const runFull = now => (prevBeforeEaches, prevAfterEaches) => testObj => {
   )
 }
 
-const run = runFull(nanoNow)([],[])
+const timer = now => ({
+  before: now,
+  after: (result, start) => Object.assign({}, result, { duration: now() - start }),
+})
+
+const run = runFull([timer(nanoNow)])([],[])
 
 const assertMany = list => {
   if (list && list.length === 0) return 'no assertions!'
