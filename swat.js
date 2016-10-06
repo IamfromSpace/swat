@@ -102,10 +102,16 @@ const assertMany = list => {
   return typeof error === 'undefined' ? true : error;
 }
 
+const getFailedTests = suite => suite.suites.reduce(
+  (acc, s) => acc.concat(getFailedTests(s)),
+  suite.tests.filter(t => t.result === FAIL)
+);
+
 module.exports = {
   runFull,
   run,
   assertMany,
+  getFailedTests,
   TEST,
   SUITE,
   PASS,
