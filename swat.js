@@ -26,6 +26,7 @@ const cons = (item, arr) => [item].concat(arr);
 
 const TEST = 'TEST';
 const SUITE = 'SUITE';
+const ROOT_SUITE = 'ROOT_SUITE';
 const PASS = 'pass';
 const FAIL = 'fail';
 
@@ -44,7 +45,7 @@ const runTest = middlewares => context => (name, test) => {
     let r;
     try { r = asPromise(test)(context)
       .then(result => result === true ? createPass(name) : createFail(name, result))
-    } catch(error) { r = Promise.resolve(createFail(error)); }
+    } catch(error) { r = Promise.resolve(createFail(name, error)); }
     return r.then(result => asyncReduce(
       beforeResultAfterFunctionTuples,
       result,
@@ -64,7 +65,7 @@ switch (result.type) {
   }
 }
 
-const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => testObj => {
+const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -77,7 +78,7 @@ const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => testObj =>
   return Promise.resolve(testObj.before ? asPromise(testObj.before)() : void(0))
     .then(() => asyncReduce(
       testAndSuiteTuples,
-      { type: SUITE, tests: [], suites: [] },
+      { tests: [], suites: [] },
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
         ? asyncReduce(beforeEaches, void(0), (prev, be) => asPromise(be)(prev))
@@ -87,13 +88,22 @@ const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => testObj =>
             ))
           )
         : typeof tos === 'object'
-          ? runFull(middlewares)(beforeEaches, afterEaches)(tos)
+          ? runFull(middlewares)(beforeEaches, afterEaches)(tos, name)
           : Promise.resolve(
-            createFail('All test object values must be a function (test) or an object (suite)')
+            createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
         )
         .then(addResult(prev))
-    ).then(returnPrevious(() => testObj.after
+    )
+    .then(
+      ({ tests, suites }) => ({
+        type: typeof suiteName === 'undefined' ? ROOT_SUITE : SUITE,
+        name: suiteName,
+        tests,
+        suites,
+      })
+    )
+    .then(returnPrevious(() => testObj.after
       ? asPromise(testObj.after)()
       : Promise.resolve(void(0)))
     )
