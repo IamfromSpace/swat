@@ -135,6 +135,7 @@ module.exports = {
   getFailedTests,
   TEST,
   SUITE,
+  ROOT_SUITE,
   PASS,
   FAIL,
 }
