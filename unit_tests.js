@@ -48,17 +48,11 @@ module.exports = {
         fp.isEqual(expected)(actual) || { expected, actual }
       );
     },
-    'with middlewares, prevBeforeEaches, prevAfterEaches, no test hooks, basic passing/failing tests, no suites, no suiteName': (c) => {
+    'with middlewares, prevBeforeEaches, prevAfterEaches, no test hooks, basic passing test, no suites, no suiteName': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
-          type: TEST,
-          name: 'always fails',
-          result: FAIL,
-          error: ERROR,
-          middlewareBeforeResult: 'always fails',
-        }, {
           type: TEST,
           name: 'always passes',
           result: PASS,
@@ -70,14 +64,10 @@ module.exports = {
         'mockBeforeEach1',
         'basicPassingTest',
         'mockAfterEach1',
-        'mockBeforeEach1',
-        'basicFailingTest',
-        'mockAfterEach1',
       ];
       return runFull([c.mockMiddleware], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         'always passes': c.basicPassingTest,
-        'always fails': c.basicFailingTest,
         // END TESTS UNDER TEST
       }).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
@@ -86,16 +76,11 @@ module.exports = {
         ,
       ]));
     },
-    'no middlewares, prevBeforeEaches, prevAfterEaches, test hooks, basic passing/failing tests, no suites, no suiteName': (c) => {
+    'no middlewares, prevBeforeEaches, prevAfterEaches, test hooks, basic passing test, no suites, no suiteName': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
-          type: TEST,
-          name: 'always fails',
-          result: FAIL,
-          error: ERROR,
-        }, {
           type: TEST,
           name: 'always passes',
           result: PASS,
@@ -109,11 +94,6 @@ module.exports = {
         'basicPassingTest',
         'mockAfterEach2',
         'mockAfterEach1',
-        'mockBeforeEach1',
-        'mockBeforeEach2',
-        'basicFailingTest',
-        'mockAfterEach2',
-        'mockAfterEach1',
         'mockAfter'
       ];
       return runFull([], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
@@ -121,7 +101,6 @@ module.exports = {
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach2,
         'always passes': c.basicPassingTest,
-        'always fails': c.basicFailingTest,
         afterEach: c.mockAfterEach2,
         after: c.mockAfter,
         // END TESTS UNDER TEST
@@ -132,11 +111,17 @@ module.exports = {
         ,
       ]));
     },
-    'no middlewares, no prevBeforeEaches, no prevAfterEaches, test hooks, basic passing/failing tests, no suites, no suiteName': (c) => {
+    'no middlewares, no prevBeforeEaches, no prevAfterEaches, test hooks, basic passing/failing/incorrect type tests, no suites, no suiteName': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+          type: TEST,
+          name: 'wrong type',
+          result: FAIL,
+          // TODO: don't use hard coded string
+          error: 'All test object values must be a function (test) or an object (suite)'
+        }, {
           type: TEST,
           name: 'always fails',
           result: FAIL,
@@ -164,6 +149,7 @@ module.exports = {
         beforeEach: c.mockBeforeEach1,
         'always passes': c.basicPassingTest,
         'always fails': c.basicFailingTest,
+        'wrong type': 'STRING',
         afterEach: c.mockAfterEach1,
         after: c.mockAfter,
         // END TESTS UNDER TEST
