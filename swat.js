@@ -65,7 +65,7 @@ switch (result.type) {
   }
 }
 
-const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+const runFull = (middlewares, initContext) => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -81,14 +81,14 @@ const runFull = middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, 
       { tests: [], suites: [] },
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
-        ? asyncReduce(beforeEaches, void(0), (prev, be) => asPromise(be)(prev))
+        ? asyncReduce(beforeEaches, initContext, (prev, be) => asPromise(be)(prev))
           .then(context => runTest(middlewares)(context)(name, tos)
             .then(returnPrevious(() =>
               asyncReduce(afterEaches, context, (prev, ae) => asPromise(ae)(prev))
             ))
           )
         : typeof tos === 'object'
-          ? runFull(middlewares)(beforeEaches, afterEaches)(tos, name)
+          ? runFull(middlewares, initContext)(beforeEaches, afterEaches)(tos, name)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
