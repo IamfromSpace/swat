@@ -1,34 +1,42 @@
 // TODO:  This should always use the most stable version
 const { runFull, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
 const fp = require('lodash/fp');
-const sinon = require('sinon');
 
-const MOCK_CONTEXT = 'MOCK_CONTEXT';
-const DOUBLE_MOCK_CONTEXT = 'DOUBLE_MOCK_CONTEXT';
+const ERROR = 'ERROR';
 
-const STUB_RETURN = 'STUB_RETURN';
+const traceAndReturnContext = name => context => (context.push(name), context);
 
 module.exports = {
   'runFull': {
-    beforeEach: () => ({
-      mockMiddleware: {
-        before: name => name,
-        after: (result, name) => Object.assign({}, result, { middlewareBeforeResult: name })
-      },
-      mockBefore: sinon.spy(),
-      mockBeforeEach: prevContext => (console.log(prevContext), typeof prevContext === 'undefined'
-        ? MOCK_CONTEXT
-        : DOUBLE_MOCK_CONTEXT
-      ),
-      mockAfterEach: sinon.stub().returns(STUB_RETURN),
-      mockAfter: sinon.spy(),
-      basicPassingTest: () => true,
-      basicContextualTest: context => context,
-      callbackPassingTest: (_, cb) => (cb(true), 'CB_TEST'),
-      callbackContextualTest: (context, cb) => (cb(context), 'CB_TEST'),
-      promisePassingTest: () => Promise.resolve(true),
-      promiseContextualTest: context => Promise.resolve(context),
-    }),
+    beforeEach: () => {
+      const contextTracker = [];
+
+      return {
+        contextTracker,
+        mockMiddleware: {
+          before: name => name,
+          after: (result, name) => Object.assign({}, result, { middlewareBeforeResult: name })
+        },
+        mockBefore: () => { contextTracker.push('mockBefore') },
+        mockBeforeEach1: traceAndReturnContext('mockBeforeEach1'),
+        mockBeforeEach2: traceAndReturnContext('mockBeforeEach2'),
+        mockAfterEach1: traceAndReturnContext('mockAfterEach1'),
+        mockAfterEach2: traceAndReturnContext('mockAfterEach2'),
+        mockAfter: () => { contextTracker.push('mockAfter') },
+        basicPassingTest: context => {
+          traceAndReturnContext('basicPassingTest')(context);
+          return true;
+        },
+        basicFailingTest: context => {
+          traceAndReturnContext('basicFailingTest')(context);
+          return ERROR;
+        },
+        callbackPassingTest: (_, cb) => (cb(true), 'CB_TEST'),
+        callbackContextualTest: (context, cb) => (cb(context), 'CB_TEST'),
+        promisePassingTest: () => Promise.resolve(true),
+        promiseContextualTest: context => Promise.resolve(context),
+      }
+    },
     'no middlewares, no prevBeforeEaches, no prevAfterEaches, no test hooks, no tests, no suites, no suiteName': () => {
       const expected = {
         type: ROOT_SUITE,
@@ -46,10 +54,10 @@ module.exports = {
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
           type: TEST,
-          name: 'fails due to context',
+          name: 'always fails',
           result: FAIL,
-          error: MOCK_CONTEXT,
-          middlewareBeforeResult: 'fails due to context',
+          error: ERROR,
+          middlewareBeforeResult: 'always fails',
         }, {
           type: TEST,
           name: 'always passes',
@@ -58,21 +66,25 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedAfterEachArgs = [[MOCK_CONTEXT], [MOCK_CONTEXT]];
-      return runFull([c.mockMiddleware])([c.mockBeforeEach], [c.mockAfterEach])({
+      const expectedContextTracker = [
+        'mockBeforeEach1',
+        'basicPassingTest',
+        'mockAfterEach1',
+        'mockBeforeEach1',
+        'basicFailingTest',
+        'mockAfterEach1',
+      ];
+      return runFull([c.mockMiddleware], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         'always passes': c.basicPassingTest,
-        'fails due to context': c.basicContextualTest,
+        'always fails': c.basicFailingTest,
         // END TESTS UNDER TEST
-      }).then(actual => {
-        const actualAfterEachArgs = c.mockAfterEach.args;
-        return assertMany([
-          fp.isEqual(expected)(actual) || { expected, actual },
-          fp.isEqual(actualAfterEachArgs)(expectedAfterEachArgs) ||
-            { expectedAfterEachArgs, actualAfterEachArgs }
-          ,
-        ]);
-      });
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
+          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        ,
+      ]));
     },
     'no middlewares, prevBeforeEaches, prevAfterEaches, test hooks, basic passing/failing tests, no suites, no suiteName': (c) => {
       const expected = {
@@ -80,9 +92,9 @@ module.exports = {
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
           type: TEST,
-          name: 'fails due to context',
+          name: 'always fails',
           result: FAIL,
-          error: DOUBLE_MOCK_CONTEXT,
+          error: ERROR,
         }, {
           type: TEST,
           name: 'always passes',
@@ -90,40 +102,35 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedBeforeArgs = [[]];
-      const expectedAfterEachArgs = [
-        [DOUBLE_MOCK_CONTEXT],
-        [STUB_RETURN],
-        [DOUBLE_MOCK_CONTEXT],
-        [STUB_RETURN],
+      const expectedContextTracker = [
+        'mockBefore',
+        'mockBeforeEach1',
+        'mockBeforeEach2',
+        'basicPassingTest',
+        'mockAfterEach2',
+        'mockAfterEach1',
+        'mockBeforeEach1',
+        'mockBeforeEach2',
+        'basicFailingTest',
+        'mockAfterEach2',
+        'mockAfterEach1',
+        'mockAfter'
       ];
-      const expectedAfterArgs = [[]];
-      return runFull([])([c.mockBeforeEach], [c.mockAfterEach])({
+      return runFull([], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
-        beforeEach: c.mockBeforeEach,
+        beforeEach: c.mockBeforeEach2,
         'always passes': c.basicPassingTest,
-        'fails due to context': c.basicContextualTest,
-        afterEach: c.mockAfterEach,
+        'always fails': c.basicFailingTest,
+        afterEach: c.mockAfterEach2,
         after: c.mockAfter,
         // END TESTS UNDER TEST
-      }).then(actual => {
-        const actualBeforeArgs = c.mockBefore.args;
-        const actualAfterEachArgs = c.mockAfterEach.args;
-        const actualAfterArgs = c.mockAfter.args;
-        return assertMany([
-          fp.isEqual(expected)(actual) || { expected, actual },
-          fp.isEqual(actualBeforeArgs)(expectedBeforeArgs) ||
-            { expectedBeforeArgs, actualBeforeArgs }
-          ,
-          fp.isEqual(actualAfterEachArgs)(expectedAfterEachArgs) ||
-            { expectedAfterEachArgs, actualAfterEachArgs }
-          ,
-          fp.isEqual(actualAfterArgs)(expectedAfterArgs) ||
-            { expectedAfterArgs, actualAfterArgs }
-          ,
-        ]);
-      });
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
+          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        ,
+      ]));
     },
     'no middlewares, no prevBeforeEaches, no prevAfterEaches, test hooks, basic passing/failing tests, no suites, no suiteName': (c) => {
       const expected = {
@@ -131,9 +138,9 @@ module.exports = {
         name: void(0), // TODO: remove the need for this undefined key.
         tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
           type: TEST,
-          name: 'fails due to context',
+          name: 'always fails',
           result: FAIL,
-          error: MOCK_CONTEXT,
+          error: ERROR,
         }, {
           type: TEST,
           name: 'always passes',
@@ -141,35 +148,31 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedBeforeArgs = [[]];
-      const expectedAfterEachArgs = [[MOCK_CONTEXT], [MOCK_CONTEXT]];
-      const expectedAfterArgs = [[]];
-      return runFull([])([], [])({
+      const expectedContextTracker = [
+        'mockBefore',
+        'mockBeforeEach1',
+        'basicPassingTest',
+        'mockAfterEach1',
+        'mockBeforeEach1',
+        'basicFailingTest',
+        'mockAfterEach1',
+        'mockAfter'
+      ];
+      return runFull([], c.contextTracker)([], [])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
-        beforeEach: c.mockBeforeEach,
+        beforeEach: c.mockBeforeEach1,
         'always passes': c.basicPassingTest,
-        'fails due to context': c.basicContextualTest,
-        afterEach: c.mockAfterEach,
+        'always fails': c.basicFailingTest,
+        afterEach: c.mockAfterEach1,
         after: c.mockAfter,
         // END TESTS UNDER TEST
-      }).then(actual => {
-        const actualBeforeArgs = c.mockBefore.args;
-        const actualAfterEachArgs = c.mockAfterEach.args;
-        const actualAfterArgs = c.mockAfter.args;
-        return assertMany([
-          fp.isEqual(expected)(actual) || { expected, actual },
-          fp.isEqual(actualBeforeArgs)(expectedBeforeArgs) ||
-            { expectedBeforeArgs, actualBeforeArgs }
-          ,
-          fp.isEqual(actualAfterEachArgs)(expectedAfterEachArgs) ||
-            { expectedAfterEachArgs, actualAfterEachArgs }
-          ,
-          fp.isEqual(actualAfterArgs)(expectedAfterArgs) ||
-            { expectedAfterArgs, actualAfterArgs }
-          ,
-        ]);
-      });
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
+          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        ,
+      ]));
     },
     'no middlewares, no prevBeforeEaches, no prevAfterEaches, no test hooks, one suite with basic passing test': (c) => {
       const expected = {
@@ -187,7 +190,7 @@ module.exports = {
           suites: [],
         }],
       };
-      return runFull([])([], [])({
+      return runFull([], c.contextTracker)([], [])({
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
