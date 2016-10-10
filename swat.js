@@ -65,7 +65,7 @@ switch (result.type) {
   }
 }
 
-const runFull = (middlewares, initContext) => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+const runFullWithContextCreator = createInitContext => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -81,14 +81,14 @@ const runFull = (middlewares, initContext) => (prevBeforeEaches, prevAfterEaches
       { tests: [], suites: [] },
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
-        ? asyncReduce(beforeEaches, initContext, (prev, be) => asPromise(be)(prev))
+        ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => asPromise(be)(prev))
           .then(context => runTest(middlewares)(context)(name, tos)
             .then(returnPrevious(() =>
               asyncReduce(afterEaches, context, (prev, ae) => asPromise(ae)(prev))
             ))
           )
         : typeof tos === 'object'
-          ? runFull(middlewares, initContext)(beforeEaches, afterEaches)(tos, name)
+          ? runFullWithContextCreator(createInitContext)(middlewares)(beforeEaches, afterEaches)(tos, name)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
@@ -110,12 +110,14 @@ const runFull = (middlewares, initContext) => (prevBeforeEaches, prevAfterEaches
   )
 }
 
+const runFull = runFullWithContextCreator(() => {});
+
 const timer = now => ({
   before: now,
   after: (result, start) => Object.assign({}, result, { duration: now() - start }),
 })
 
-const run = runFull([timer(nanoNow)])([],[])
+const run = runFull([timer(nanoNow)], () => {})([],[])
 
 const assertMany = list => {
   if (list && list.length === 0) return 'no assertions!'
@@ -129,6 +131,7 @@ const getFailedTests = suite => suite.suites.reduce(
 );
 
 module.exports = {
+  runFullWithContextCreator,
   runFull,
   run,
   assertMany,

@@ -1,5 +1,5 @@
 // TODO:  This should always use the most stable version
-const { runFull, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
+const { runFullWithContextCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
 const fp = require('lodash/fp');
 
 const ERROR = 'ERROR';
@@ -7,22 +7,36 @@ const ERROR = 'ERROR';
 const traceAndReturnContext = name => context => (context.push(name), context);
 
 module.exports = {
-  'runFull': {
+  'runFullWithContextCreator': {
     beforeEach: () => {
-      const contextTracker = [];
+      // Tracking our context is a pretty difficult task
+      // We need to be sure that we never share contexts between two tests
+      // and then all hooks are called in the proper order.
+      // To do this, we pass in a new array each time that context is initialized
+      // and we hold all these arrays in the `contextTrackers` array.
+      // Each of our hooks and tests then push their name to the current context
+      // and (when possible) forward the context.
+      // We use push because we need to mutate the array in order to inspect it later.
+      const contextTrackers = [[]];
+      let currentTrackerIndex = 0;
 
       return {
-        contextTracker,
+        contextTrackers,
+        getTrackingContext: () => {
+          contextTrackers.push([]);
+          currentTrackerIndex++;
+          return contextTrackers[currentTrackerIndex];
+        },
         mockMiddleware: {
           before: name => name,
           after: (result, name) => Object.assign({}, result, { middlewareBeforeResult: name })
         },
-        mockBefore: () => { contextTracker.push('mockBefore') },
+        mockBefore: () => { contextTrackers[currentTrackerIndex].push('mockBefore') },
         mockBeforeEach1: traceAndReturnContext('mockBeforeEach1'),
         mockBeforeEach2: traceAndReturnContext('mockBeforeEach2'),
         mockAfterEach1: traceAndReturnContext('mockAfterEach1'),
         mockAfterEach2: traceAndReturnContext('mockAfterEach2'),
-        mockAfter: () => { contextTracker.push('mockAfter') },
+        mockAfter: () => { contextTrackers[currentTrackerIndex].push('mockAfter') },
         basicPassingTest: context => {
           traceAndReturnContext('basicPassingTest')(context);
           return true;
@@ -44,7 +58,7 @@ module.exports = {
         tests: [],
         suites: [],
       };
-      return runFull([])([], [])({}).then(actual =>
+      return runFullWithContextCreator(() => {})([])([], [])({}).then(actual =>
         fp.isEqual(expected)(actual) || { expected, actual }
       );
     },
@@ -60,19 +74,22 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedContextTracker = [
-        'mockBeforeEach1',
-        'basicPassingTest',
-        'mockAfterEach1',
+      const expectedContextTrackers = [
+        [],
+        [
+          'mockBeforeEach1',
+          'basicPassingTest',
+          'mockAfterEach1',
+        ],
       ];
-      return runFull([c.mockMiddleware], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return runFullWithContextCreator(c.getTrackingContext)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         'always passes': c.basicPassingTest,
         // END TESTS UNDER TEST
       }).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
-        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
-          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
         ,
       ]));
     },
@@ -87,16 +104,18 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedContextTracker = [
-        'mockBefore',
-        'mockBeforeEach1',
-        'mockBeforeEach2',
-        'basicPassingTest',
-        'mockAfterEach2',
-        'mockAfterEach1',
-        'mockAfter'
+      const expectedContextTrackers = [
+        ['mockBefore'],
+        [
+          'mockBeforeEach1',
+          'mockBeforeEach2',
+          'basicPassingTest',
+          'mockAfterEach2',
+          'mockAfterEach1',
+          'mockAfter',
+        ],
       ];
-      return runFull([], c.contextTracker)([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return runFullWithContextCreator(c.getTrackingContext)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach2,
@@ -106,8 +125,8 @@ module.exports = {
         // END TESTS UNDER TEST
       }).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
-        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
-          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
         ,
       ]));
     },
@@ -133,17 +152,12 @@ module.exports = {
         }],
         suites: [],
       };
-      const expectedContextTracker = [
-        'mockBefore',
-        'mockBeforeEach1',
-        'basicPassingTest',
-        'mockAfterEach1',
-        'mockBeforeEach1',
-        'basicFailingTest',
-        'mockAfterEach1',
-        'mockAfter'
+      const expectedContextTrackers = [
+        ['mockBefore'],
+        ['mockBeforeEach1', 'basicPassingTest', 'mockAfterEach1'],
+        ['mockBeforeEach1', 'basicFailingTest', 'mockAfterEach1', 'mockAfter'],
       ];
-      return runFull([], c.contextTracker)([], [])({
+      return runFullWithContextCreator(c.getTrackingContext)([])([], [])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach1,
@@ -155,8 +169,8 @@ module.exports = {
         // END TESTS UNDER TEST
       }).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
-        fp.isEqual(c.contextTracker)(expectedContextTracker) ||
-          { actualContextTracker: c.contextTracker, expectedContextTracker }
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
         ,
       ]));
     },
@@ -176,7 +190,7 @@ module.exports = {
           suites: [],
         }],
       };
-      return runFull([], c.contextTracker)([], [])({
+      return runFullWithContextCreator(c.getTrackingContext)([])([], [])({
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
