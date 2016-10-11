@@ -3,8 +3,15 @@ const { runFullWithContextCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FA
 const fp = require('lodash/fp');
 
 const ERROR = 'ERROR';
+const ASYNC_TIMEOUT = 5;
+
+const doWaitDo = (before, after) => (before(), setTimeout(after, ASYNC_TIMEOUT));
 
 const traceAndReturnContext = name => context => (context.push(name), context);
+const traceAndReturnContextCallback = name => (context, cb) => doWaitDo(
+  () => { traceAndReturnContext('start-' + name)(context) },
+  () => { cb(traceAndReturnContext('end-' + name)(context)) }
+);
 
 module.exports = {
   'runFullWithContextCreator': {
@@ -45,10 +52,27 @@ module.exports = {
           traceAndReturnContext('basicFailingTest')(context);
           return ERROR;
         },
-        callbackPassingTest: (_, cb) => (cb(true), 'CB_TEST'),
-        callbackContextualTest: (context, cb) => (cb(context), 'CB_TEST'),
-        promisePassingTest: () => Promise.resolve(true),
-        promiseContextualTest: context => Promise.resolve(context),
+        callbackBefore: cb => doWaitDo(
+          () => { contextTrackers[currentTrackerIndex].push('start-callbackBefore'); },
+          () => { contextTrackers[currentTrackerIndex].push('end-callbackBefore'); cb() }
+        ),
+        callbackMiddleware: {
+          before: (name, cb) => { setTimeout(() => cb(name), ASYNC_TIMEOUT); },
+          after: (result, name, cb) => doWaitDo(
+            () => {},
+            () => { cb(Object.assign({}, result, { middlewareBeforeResult: name })) }
+          ),
+        },
+        callbackBeforeEach: traceAndReturnContextCallback('callbackBeforeEach'),
+        callbackAfterEach: traceAndReturnContextCallback('callbackAfterEach'),
+        callbackPassingTest: (context, cb) => doWaitDo(
+          () => { traceAndReturnContext('start-callbackPassingTest')(context) },
+          () => { traceAndReturnContext('end-callbackPassingTest')(context); cb(true) }
+        ),
+        callbackAfter: cb => doWaitDo(
+          () => { contextTrackers[currentTrackerIndex].push('start-callbackAfter'); },
+          () => { contextTrackers[currentTrackerIndex].push('end-callbackAfter'); cb() }
+        ),
       }
     },
     'no middlewares, no prevBeforeEaches, no prevAfterEaches, no test hooks, no tests, no suites, no suiteName': () => {
@@ -197,6 +221,45 @@ module.exports = {
         }
         // END TESTS UNDER TEST
       }).then(actual => fp.isEqual(expected)(actual) || { expected, actual });
+    },
+    'async callback middlewares, test hooks, and passing test (no prevBefore/AfterEaches)': (c) => {
+      const expected = {
+        type: ROOT_SUITE,
+        name: void(0), // TODO: remove the need for this undefined key.
+        tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+          type: TEST,
+          name: 'always passes',
+          result: PASS,
+        }],
+        suites: [],
+      };
+      const expectedContextTrackers = [
+        ['start-callbackBefore', 'end-callbackBefore'],
+        [
+          'start-callbackBeforeEach',
+          'end-callbackBeforeEach',
+          'start-callbackPassingTest',
+          'end-callbackPassingTest',
+          'start-callbackAfterEach',
+          'end-callbackAfterEach',
+          'start-callbackAfter',
+          'end-callbackAfter',
+        ],
+      ];
+      return runFullWithContextCreator(c.getTrackingContext)([])([], [])({
+        // START TESTS UNDER TEST
+        before: c.callbackBefore,
+        beforeEach: c.callbackBeforeEach,
+        'always passes': c.callbackPassingTest,
+        afterEach: c.callbackAfterEach,
+        after: c.callbackAfter,
+        // END TESTS UNDER TEST
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
+        ,
+      ]));
     },
   },
 }
