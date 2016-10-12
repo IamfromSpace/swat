@@ -6,11 +6,16 @@ const ERROR = 'ERROR';
 const ASYNC_TIMEOUT = 5;
 
 const doWaitDo = (before, after) => (before(), setTimeout(after, ASYNC_TIMEOUT));
+const doWaitDoPromise = (before, after) => new Promise(resolve => doWaitDo(before, () => resolve(after())));
 
 const traceAndReturnContext = name => context => (context.push(name), context);
 const traceAndReturnContextCallback = name => (context, cb) => doWaitDo(
   () => { traceAndReturnContext('start-' + name)(context) },
   () => { cb(traceAndReturnContext('end-' + name)(context)) }
+);
+const traceAndReturnContextPromise = name => context => doWaitDoPromise(
+  () => { traceAndReturnContext('start-' + name)(context) },
+  () => traceAndReturnContext('end-' + name)(context)
 );
 
 module.exports = {
@@ -72,6 +77,27 @@ module.exports = {
         callbackAfter: cb => doWaitDo(
           () => { contextTrackers[currentTrackerIndex].push('start-callbackAfter'); },
           () => { contextTrackers[currentTrackerIndex].push('end-callbackAfter'); cb() }
+        ),
+        promiseBefore: () => doWaitDoPromise(
+          () => { contextTrackers[currentTrackerIndex].push('start-promiseBefore'); },
+          () => contextTrackers[currentTrackerIndex].push('end-promiseBefore')
+        ),
+        promiseMiddleware: {
+          before: (name) => new Promise(r => setTimeout(r, ASYNC_TIMEOUT, name)),
+          after: (result, name) => doWaitDoPromise(
+            () => {},
+            () => Object.assign({}, result, { middlewareBeforeResult: name })
+          ),
+        },
+        promiseBeforeEach: traceAndReturnContextPromise('promiseBeforeEach'),
+        promisePassingTest: context => doWaitDoPromise(
+          () => { traceAndReturnContext('start-promisePassingTest')(context) },
+          () => { traceAndReturnContext('end-promisePassingTest')(context); return true; }
+        ),
+        promiseAfterEach: traceAndReturnContextPromise('promiseAfterEach'),
+        promiseAfter: () => doWaitDoPromise(
+          () => { contextTrackers[currentTrackerIndex].push('start-promiseAfter'); },
+          () => contextTrackers[currentTrackerIndex].push('end-promiseAfter')
         ),
       }
     },
@@ -253,6 +279,45 @@ module.exports = {
         'always passes': c.callbackPassingTest,
         afterEach: c.callbackAfterEach,
         after: c.callbackAfter,
+        // END TESTS UNDER TEST
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
+        ,
+      ]));
+    },
+    'async promise middlewares, test hooks, and passing test (no prevBefore/AfterEaches)': (c) => {
+      const expected = {
+        type: ROOT_SUITE,
+        name: void(0), // TODO: remove the need for this undefined key.
+        tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+          type: TEST,
+          name: 'always passes',
+          result: PASS,
+        }],
+        suites: [],
+      };
+      const expectedContextTrackers = [
+        ['start-promiseBefore', 'end-promiseBefore'],
+        [
+          'start-promiseBeforeEach',
+          'end-promiseBeforeEach',
+          'start-promisePassingTest',
+          'end-promisePassingTest',
+          'start-promiseAfterEach',
+          'end-promiseAfterEach',
+          'start-promiseAfter',
+          'end-promiseAfter',
+        ],
+      ];
+      return runFullWithContextCreator(c.getTrackingContext)([])([], [])({
+        // START TESTS UNDER TEST
+        before: c.promiseBefore,
+        beforeEach: c.promiseBeforeEach,
+        'always passes': c.promisePassingTest,
+        afterEach: c.promiseAfterEach,
+        after: c.promiseAfter,
         // END TESTS UNDER TEST
       }).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
