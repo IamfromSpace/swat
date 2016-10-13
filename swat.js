@@ -16,9 +16,16 @@ const nanoNow = () => {
 
 const returnPrevious = func => a => func().then(() =>a);
 
-const asPromise = fn => (...args) => args.length + 1 === fn.length
-  ? new Promise(done => fn(...args, done))
-  : Promise.resolve(fn(...args))
+const asPromise = timeout => (fn, caller) => (...args) => {
+  let timeoutId;
+  const errMsg = caller + ' timed out in ' + timeout + 'ms.';
+  return Promise.race([
+    new Promise((resolve, reject) => { timeoutId = setTimeout(reject, timeout, errMsg); }),
+    args.length + 1 === fn.length
+      ? new Promise(done => fn(...args, done))
+      : Promise.resolve(fn(...args))
+  ]).then(result => (timeoutId && clearTimeout(timeoutId), result));
+}
 
 const cons = (item, arr) => [item].concat(arr);
 
@@ -30,26 +37,28 @@ const ROOT_SUITE = 'ROOT_SUITE';
 const PASS = 'pass';
 const FAIL = 'fail';
 
-const hooks = ['before', 'beforeEach', 'afterEach', 'after'];
+const hooks = ['before', 'beforeEach', 'afterEach', 'after', 'timeout'];
 
 const createPass = name => ({ type: TEST, name, result: PASS });
 const createFail = (name, error) => ({ type: TEST, name, result: FAIL, error });
 
-const runTest = middlewares => context => (name, test) => {
+const runTest = timeout => middlewares => context => (name, test) => {
+  const p = asPromise(timeout);
   return asyncReduce(
     middlewares,
     [],
-    (tuples, { before, after }) => asPromise(before)(name)
-      .then(middlewareBeforeResult => cons([middlewareBeforeResult, after], tuples))
+    (tuples, { name: mName, before, after }) => p(before, mName + ' middleware before hook')(name)
+      .then(middlewareBeforeResult => cons([middlewareBeforeResult, after, mName], tuples))
   ).then(beforeResultAfterFunctionTuples => {
     let r;
-    try { r = asPromise(test)(context)
+    try { r = p(test, name)(context)
       .then(result => result === true ? createPass(name) : createFail(name, result))
+      .catch(error => createFail(name, error))
     } catch(error) { r = Promise.resolve(createFail(name, error)); }
     return r.then(result => asyncReduce(
       beforeResultAfterFunctionTuples,
       result,
-      (result, [middlewareBeforeResult, after]) => asPromise(after)(result, middlewareBeforeResult)
+      (result, [middlewareBeforeResult, after, mName]) => p(after, mName + ' middleware after hook')(result, middlewareBeforeResult)
     ));
   })
 }
@@ -65,7 +74,9 @@ switch (result.type) {
   }
 }
 
-const runFullWithContextCreator = createInitContext => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+const runFullWithContextCreator = (createInitContext, defaultTimeout) => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+  const timeout = typeof testObj.timeout === 'number' ? testObj.timeout : defaultTimeout;
+  const p = asPromise(timeout);
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -75,20 +86,20 @@ const runFullWithContextCreator = createInitContext => middlewares => (prevBefor
   const testAndSuiteTuples = Object.keys(testObj)
     .filter(key => !hooks.find(hook => hook === key))
     .map(key => [key, testObj[key]])
-  return Promise.resolve(testObj.before ? asPromise(testObj.before)() : void(0))
+  return Promise.resolve(testObj.before ? p(testObj.before, `${suiteName || 'Root suite'} before hook`)() : void(0))
     .then(() => asyncReduce(
       testAndSuiteTuples,
       { tests: [], suites: [] },
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
-        ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => asPromise(be)(prev))
-          .then(context => runTest(middlewares)(context)(name, tos)
+        ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => p(be, `${name} beforeEach hook`)(prev))
+          .then(context => runTest(timeout)(middlewares)(context)(name, tos)
             .then(returnPrevious(() =>
-              asyncReduce(afterEaches, context, (prev, ae) => asPromise(ae)(prev))
+              asyncReduce(afterEaches, context, (prev, ae) => p(ae, `${name} afterEach hook`)(prev))
             ))
           )
         : typeof tos === 'object'
-          ? runFullWithContextCreator(createInitContext)(middlewares)(beforeEaches, afterEaches)(tos, name)
+          ? runFullWithContextCreator(createInitContext, timeout)(middlewares)(beforeEaches, afterEaches)(tos, name)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
@@ -104,15 +115,16 @@ const runFullWithContextCreator = createInitContext => middlewares => (prevBefor
       })
     )
     .then(returnPrevious(() => testObj.after
-      ? asPromise(testObj.after)()
+      ? p(testObj.after, `${suiteName || 'Root suite'} after hook`)()
       : Promise.resolve(void(0)))
     )
   )
 }
 
-const runFull = runFullWithContextCreator(() => {});
+const runFull = runFullWithContextCreator(() => {}, 5000);
 
 const timer = now => ({
+  name: 'timer',
   before: now,
   after: (result, start) => Object.assign({}, result, { duration: now() - start }),
 })

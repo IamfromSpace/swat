@@ -240,12 +240,17 @@ run({
 });
 ```
 
+#### Timeouts
+
+After 5 seconds (by default) if the promise is not resolved or the callback not called, the test will fail.  If you need to change this value, the test suite accepts a timeout key to override the default.  Note that this changes the timeout for ALL async functions (middlewares, hooks, tests, etc) in all child suites.
+
 ### Middlewares
 
-Swat has support for "global" or "master" hooks that run directly before and after each test.  This enables measurement/notifications/etc of things that can only be performed at the time of test execution and need to run on every single test.  A good example is a timer middleware:
+Swat has support for "global" or "master" hooks that run directly before and after each test.  This enables measurement/notifications/etc of things that can only be performed at the time of test execution and need to run on every single test.  Middlewares also need a name for better error logging.  A good example is a timer middleware:
 
 ```javascript
 const timer = {
+  name: 'timer',
   before: (name) => {
     return Date.now();
   },
