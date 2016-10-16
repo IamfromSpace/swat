@@ -123,7 +123,7 @@ module.exports = {
         tests: [],
         suites: [],
       };
-      return runFullWithContextCreator(() => {}, TEST_TIMEOUT, MockError)([])([], [])({}).then(actual =>
+      return runFullWithContextCreator(() => {}, TEST_TIMEOUT, Error)([])([], [])({}).then(actual =>
         fp.isEqual(expected)(actual) || { expected, actual }
       );
     },
@@ -147,7 +147,7 @@ module.exports = {
           'mockAfterEach1',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         'always passes': c.basicPassingTest,
         // END TESTS UNDER TEST
@@ -180,7 +180,7 @@ module.exports = {
           'mockAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach2,
@@ -262,7 +262,7 @@ module.exports = {
           suites: [],
         }],
       };
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
@@ -294,7 +294,7 @@ module.exports = {
           'end-callbackAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
         // START TESTS UNDER TEST
         timeout: '1',
         before: c.callbackBefore,
@@ -334,7 +334,7 @@ module.exports = {
           'end-promiseAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
         // START TESTS UNDER TEST
         before: c.promiseBefore,
         beforeEach: c.promiseBeforeEach,
