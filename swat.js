@@ -16,11 +16,13 @@ const nanoNow = () => {
 
 const returnPrevious = func => a => func().then(() =>a);
 
-const asPromise = timeout => (fn, caller) => (...args) => {
+const asPromise = (timeout, createError) => (fn, caller) => (...args) => {
   let timeoutId;
   const errMsg = caller + ' timed out in ' + timeout + 'ms.';
   return Promise.race([
-    new Promise((resolve, reject) => { timeoutId = setTimeout(reject, timeout, errMsg); }),
+    new Promise((resolve, reject) => {
+      timeoutId = setTimeout(msg => reject(new createError(msg)), timeout, errMsg);
+    }),
     args.length + 1 === fn.length
       ? new Promise(done => fn(...args, done))
       : Promise.resolve(fn(...args))
@@ -42,8 +44,8 @@ const hooks = ['before', 'beforeEach', 'afterEach', 'after', 'timeout'];
 const createPass = name => ({ type: TEST, name, result: PASS });
 const createFail = (name, error) => ({ type: TEST, name, result: FAIL, error });
 
-const runTest = timeout => middlewares => context => (name, test) => {
-  const p = asPromise(timeout);
+const runTest = (timeout, createError) => middlewares => context => (name, test) => {
+  const p = asPromise(timeout, createError);
   return asyncReduce(
     middlewares,
     [],
@@ -74,9 +76,9 @@ switch (result.type) {
   }
 }
 
-const runFullWithContextCreator = (createInitContext, defaultTimeout) => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+const runFullWithContextCreator = (createInitContext, defaultTimeout, createError) => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
   const timeout = typeof testObj.timeout === 'number' ? testObj.timeout : defaultTimeout;
-  const p = asPromise(timeout);
+  const p = asPromise(timeout, createError);
   const beforeEaches = testObj.beforeEach
     ? prevBeforeEaches.concat([testObj.beforeEach])
     : prevBeforeEaches;
@@ -93,7 +95,7 @@ const runFullWithContextCreator = (createInitContext, defaultTimeout) => middlew
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
         ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => p(be, `${name} beforeEach hook`)(prev))
-          .then(context => runTest(timeout)(middlewares)(context)(name, tos)
+          .then(context => runTest(timeout, createError)(middlewares)(context)(name, tos)
             .then(returnPrevious(() =>
               asyncReduce(afterEaches, context, (prev, ae) => p(ae, `${name} afterEach hook`)(prev))
             ))
@@ -121,7 +123,7 @@ const runFullWithContextCreator = (createInitContext, defaultTimeout) => middlew
   )
 }
 
-const runFull = runFullWithContextCreator(() => {}, 5000);
+const runFull = runFullWithContextCreator(() => {}, 5000, Error);
 
 const timer = now => ({
   name: 'timer',
