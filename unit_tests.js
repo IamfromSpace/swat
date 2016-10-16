@@ -352,7 +352,7 @@ module.exports = {
       })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'Root suite before hook timed out in ' + SHORT_TIMEOUT + 'ms.';
+        const expected = 'Root suite before hook timed out in ' + SHORT_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -362,7 +362,7 @@ module.exports = {
       })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'Root suite after hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'Root suite after hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -372,7 +372,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'SUITE NAME before hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'SUITE NAME before hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -382,7 +382,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'SUITE NAME after hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'SUITE NAME after hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -393,7 +393,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'always passes beforeEach hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'always passes beforeEach hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -404,7 +404,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'always passes afterEach hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'always passes afterEach hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -418,7 +418,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'beforeTimeoutMiddleware middleware before hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'beforeTimeoutMiddleware middleware before hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
@@ -432,7 +432,7 @@ module.exports = {
       }, 'SUITE NAME')
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
-        expected = 'afterTimeoutMiddleware middleware after hook timed out in ' + TEST_TIMEOUT + 'ms.';
+        const expected = 'afterTimeoutMiddleware middleware after hook timed out in ' + TEST_TIMEOUT + 'ms.';
         return expected === actual || { expected, actual };
       });
     },
