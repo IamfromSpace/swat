@@ -246,7 +246,7 @@ module.exports = {
         ,
       ]));
     },
-    'no middlewares, no prevBeforeEaches, no prevAfterEaches, no test hooks, one suite with basic passing test': (c) => {
+    'no middlewares, prevBeforeEaches, prevAfterEaches, no test hooks, and basic passing test': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
@@ -262,13 +262,75 @@ module.exports = {
           suites: [],
         }],
       };
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
+      const expectedContextTrackers = [[], [
+        'mockBeforeEach1',
+        'basicPassingTest',
+        'mockAfterEach1',
+      ]];
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
         }
         // END TESTS UNDER TEST
-      }).then(actual => fp.isEqual(expected)(actual) || { expected, actual });
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
+        ,
+      ]));
+    },
+    'middlewares, prevBeforeEaches, prevAfterEaches, beforeEach and afterEach hooks, one suite with promise passing test': (c) => {
+      const expected = {
+        type: ROOT_SUITE,
+        name: void(0), // TODO: remove the need for this undefined key.
+        tests: [],
+        suites: [{
+          type: SUITE,
+          name: 'a suite',
+          tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+            type: TEST,
+            name: 'always passes',
+            result: PASS,
+            middlewareBeforeResult: 'always passes',
+          }],
+          suites: [],
+        }],
+      };
+      const expectedContextTrackers = [[], [
+        'mockBeforeEach1',
+        'mockBeforeEach2',
+        'start-promisePassingTest',
+        'end-promisePassingTest',
+        'mockAfterEach2',
+        'mockAfterEach1',
+      ]];
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
+        // START TESTS UNDER TEST
+        beforeEach: c.mockBeforeEach2,
+        afterEach: c.mockAfterEach2,
+        'a suite': {
+          'always passes': c.promisePassingTest,
+        }
+        // END TESTS UNDER TEST
+      }).then(actual => assertMany([
+        fp.isEqual(expected)(actual) || { expected, actual },
+        fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
+          { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
+        ,
+      ]));
+    },
+    'Should fail a promise when a nested suite before times out': c => {
+      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+        'a suite': {
+          before: c.timeoutPromise,
+        },
+      }, 'SUITE NAME')
+      .then(_ => 'Should have thrown an error')
+      .catch(actual => {
+        const expected = new MockError('a suite before hook timed out in ' + TEST_TIMEOUT + 'ms.');
+        return fp.isEqual(expected, actual) || { expected, actual };
+      });
     },
     'async callback middlewares, test hooks, invalid timeout, and passing test (no prevBefore/AfterEaches)': (c) => {
       const expected = {

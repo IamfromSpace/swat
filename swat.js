@@ -101,7 +101,7 @@ const runFullWithContextCreator = (createInitContext, defaultTimeout, createErro
             ))
           )
         : typeof tos === 'object'
-          ? runFullWithContextCreator(createInitContext, timeout)(middlewares)(beforeEaches, afterEaches)(tos, name)
+          ? runFullWithContextCreator(createInitContext, timeout, createError)(middlewares)(beforeEaches, afterEaches)(tos, name)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
