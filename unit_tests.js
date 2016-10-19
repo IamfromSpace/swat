@@ -1,5 +1,5 @@
 // TODO:  This should always use the most stable version
-const { runFullWithContextCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
+const { _runCreatorCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
 const fp = require('lodash/fp');
 
 const ERROR = 'ERROR';
@@ -26,7 +26,7 @@ function MockError(msg) {
 }
 
 module.exports = {
-  'runFullWithContextCreator': {
+  '_runCreatorCreator': {
     beforeEach: () => {
       // Tracking our context is a pretty difficult task
       // We need to be sure that we never share contexts between two tests
@@ -123,7 +123,7 @@ module.exports = {
         tests: [],
         suites: [],
       };
-      return runFullWithContextCreator(() => {}, TEST_TIMEOUT, Error)([])([], [])({}).then(actual =>
+      return _runCreatorCreator(() => {}, TEST_TIMEOUT, Error, [], [])([])({}).then(actual =>
         fp.isEqual(expected)(actual) || { expected, actual }
       );
     },
@@ -147,7 +147,7 @@ module.exports = {
           'mockAfterEach1',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [c.mockBeforeEach1], [c.mockAfterEach1])([c.mockMiddleware])({
         // START TESTS UNDER TEST
         'always passes': c.basicPassingTest,
         // END TESTS UNDER TEST
@@ -180,7 +180,7 @@ module.exports = {
           'mockAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [c.mockBeforeEach1], [c.mockAfterEach1])([])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach2,
@@ -228,7 +228,7 @@ module.exports = {
         ['mockBeforeEach1', 'basicFailingTest', 'mockAfterEach1'],
         ['mockBeforeEach1', 'start-timeoutPromiseTest', 'mockAfterEach1', 'mockAfter'],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         // START TESTS UNDER TEST
         before: c.mockBefore,
         beforeEach: c.mockBeforeEach1,
@@ -267,7 +267,7 @@ module.exports = {
         'basicPassingTest',
         'mockAfterEach1',
       ]];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [c.mockBeforeEach1], [c.mockAfterEach1])([])({
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
@@ -305,7 +305,7 @@ module.exports = {
         'mockAfterEach2',
         'mockAfterEach1',
       ]];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([c.mockMiddleware])([c.mockBeforeEach1], [c.mockAfterEach1])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [c.mockBeforeEach1], [c.mockAfterEach1])([c.mockMiddleware])({
         // START TESTS UNDER TEST
         beforeEach: c.mockBeforeEach2,
         afterEach: c.mockAfterEach2,
@@ -321,11 +321,11 @@ module.exports = {
       ]));
     },
     'Should fail a promise when a nested suite before times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         'a suite': {
           before: c.timeoutPromise,
         },
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('a suite before hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -356,7 +356,7 @@ module.exports = {
           'end-callbackAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [], [])([])({
         // START TESTS UNDER TEST
         timeout: '1',
         before: c.callbackBefore,
@@ -396,7 +396,7 @@ module.exports = {
           'end-promiseAfter',
         ],
       ];
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, Error)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, Error, [], [])([])({
         // START TESTS UNDER TEST
         before: c.promiseBefore,
         beforeEach: c.promiseBeforeEach,
@@ -412,7 +412,7 @@ module.exports = {
       ]));
     },
     'Should fail a promise when Root Suite before times out, with a custom timeout': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         timeout: SHORT_TIMEOUT,
         before: c.promiseBefore,
       })
@@ -423,7 +423,7 @@ module.exports = {
       });
     },
     'Should fail a promise when Root Suite after times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         after: c.timeoutPromise,
       })
       .then(_ => 'Should have thrown an error')
@@ -433,9 +433,9 @@ module.exports = {
       });
     },
     'Should fail a promise when a named suite before times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [], 'SUITE NAME')([])({
         before: c.timeoutPromise,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('SUITE NAME before hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -443,9 +443,9 @@ module.exports = {
       });
     },
     'Should fail a promise when a named suite after times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [], 'SUITE NAME')([])({
         after: c.timeoutPromise,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('SUITE NAME after hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -453,10 +453,10 @@ module.exports = {
       });
     },
     'Should fail a promise when a beforeEach hook times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         beforeEach: c.timeoutPromise,
         'always passes': c.basicPassingTest,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('always passes beforeEach hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -464,10 +464,10 @@ module.exports = {
       });
     },
     'Should fail a promise when an afterEach hook times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([])([], [])({
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([])({
         'always passes': c.basicPassingTest,
         afterEach: c.timeoutPromise,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('always passes afterEach hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -475,13 +475,13 @@ module.exports = {
       });
     },
     'Should fail a promise when a middleware before times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([{
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([{
         name: 'beforeTimeoutMiddleware',
         before: c.timeoutPromise,
         after: () => {},
-      }])([], [])({
+      }])({
         'always passes': c.basicPassingTest,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('beforeTimeoutMiddleware middleware before hook timed out in ' + TEST_TIMEOUT + 'ms.');
@@ -489,13 +489,13 @@ module.exports = {
       });
     },
     'Should fail a promise when a middleware after times out': c => {
-      return runFullWithContextCreator(c.getTrackingContext, TEST_TIMEOUT, MockError)([{
+      return _runCreatorCreator(c.getTrackingContext, TEST_TIMEOUT, MockError, [], [])([{
         name: 'afterTimeoutMiddleware',
         before: () => {},
         after: c.timeoutPromise,
-      }])([], [])({
+      }])({
         'always passes': c.basicPassingTest,
-      }, 'SUITE NAME')
+      })
       .then(_ => 'Should have thrown an error')
       .catch(actual => {
         const expected = new MockError('afterTimeoutMiddleware middleware after hook timed out in ' + TEST_TIMEOUT + 'ms.');

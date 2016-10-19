@@ -76,7 +76,7 @@ switch (result.type) {
   }
 }
 
-const runFullWithContextCreator = (createInitContext, defaultTimeout, createError) => middlewares => (prevBeforeEaches, prevAfterEaches) => (testObj, suiteName) => {
+const _runCreatorCreator = (createInitContext, defaultTimeout, createError, prevBeforeEaches, prevAfterEaches, suiteName) => middlewares => testObj => {
   const timeout = typeof testObj.timeout === 'number' ? testObj.timeout : defaultTimeout;
   const p = asPromise(timeout, createError);
   const beforeEaches = testObj.beforeEach
@@ -101,7 +101,7 @@ const runFullWithContextCreator = (createInitContext, defaultTimeout, createErro
             ))
           )
         : typeof tos === 'object'
-          ? runFullWithContextCreator(createInitContext, timeout, createError)(middlewares)(beforeEaches, afterEaches)(tos, name)
+          ? _runCreatorCreator(createInitContext, timeout, createError, beforeEaches, afterEaches, name)(middlewares)(tos)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
@@ -123,7 +123,7 @@ const runFullWithContextCreator = (createInitContext, defaultTimeout, createErro
   )
 }
 
-const runFull = runFullWithContextCreator(() => {}, 5000, Error);
+const runCreator = _runCreatorCreator(() => {}, 5000, Error, [], []);
 
 const timer = now => ({
   name: 'timer',
@@ -131,7 +131,7 @@ const timer = now => ({
   after: (result, start) => Object.assign({}, result, { duration: now() - start }),
 })
 
-const run = runFull([timer(nanoNow)], () => {})([],[])
+const run = runCreator([timer(nanoNow)])
 
 const assertMany = list => {
   if (list && list.length === 0) return 'no assertions!'
@@ -145,8 +145,8 @@ const getFailedTests = suite => suite.suites.reduce(
 );
 
 module.exports = {
-  runFullWithContextCreator,
-  runFull,
+  _runCreatorCreator,
+  runCreator,
   run,
   assertMany,
   getFailedTests,

@@ -267,10 +267,10 @@ The middleware is just an object with a `before` and `after` property.  The `bef
 
 The `after` property is a function that accepts two arguments, the test result object, and the result returned by this middleware's `before` result for this test.  The return value of the `after` hook becomes the new test result.  Do _NOT_ mutate the test result; please return a new value.
 
-The `runFull` function accepts an array of middlewares and returns a `run` function:
+The `runCreator` function accepts an array of middlewares and returns a `run` function:
 
 ```javascript
-const runAndLogProgress = runFull([logProgress, timer]);
+const runAndLogProgress = runCreator([logProgress, timer]);
 runAndLogProgress(mySuite).then(result => {
   ...
 });
