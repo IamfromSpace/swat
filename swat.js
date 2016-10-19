@@ -38,10 +38,12 @@ const SUITE = 'SUITE';
 const ROOT_SUITE = 'ROOT_SUITE';
 const PASS = 'pass';
 const FAIL = 'fail';
+const SKIP = 'skip';
 
 const hooks = ['before', 'beforeEach', 'afterEach', 'after', 'timeout'];
 
 const createPass = name => ({ type: TEST, name, result: PASS });
+const createSkip = name => ({ type: TEST, name, result: SKIP });
 const createFail = (name, error) => ({ type: TEST, name, result: FAIL, error });
 
 const runTest = (timeout, createError) => middlewares => context => (name, test) => {
@@ -76,7 +78,12 @@ switch (result.type) {
   }
 }
 
-const _runCreatorCreator = (createInitContext, defaultTimeout, createError, prevBeforeEaches, prevAfterEaches, suiteName) => middlewares => testObj => {
+const defaultSkipRegex = /^skip-/i;
+const defaultOnlyRegex = /.*/i;
+
+const _runCreatorCreator = (createInitContext, defaultTimeout, createError, prevBeforeEaches, prevAfterEaches, suiteName) => middlewares => (testObj, skipRegex, onlyRegex) => {
+  const skip = skipRegex || defaultSkipRegex;
+  const only = onlyRegex || defaultOnlyRegex;
   const timeout = typeof testObj.timeout === 'number' ? testObj.timeout : defaultTimeout;
   const p = asPromise(timeout, createError);
   const beforeEaches = testObj.beforeEach
@@ -94,14 +101,16 @@ const _runCreatorCreator = (createInitContext, defaultTimeout, createError, prev
       { tests: [], suites: [] },
       (prev, [name, tos]) =>
         ( typeof tos === 'function'
-        ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => p(be, `${name} beforeEach hook`)(prev))
-          .then(context => runTest(timeout, createError)(middlewares)(context)(name, tos)
-            .then(returnPrevious(() =>
-              asyncReduce(afterEaches, context, (prev, ae) => p(ae, `${name} afterEach hook`)(prev))
-            ))
-          )
+        ? !skip.test(name) && only.test(name)
+          ? asyncReduce(beforeEaches, createInitContext(), (prev, be) => p(be, `${name} beforeEach hook`)(prev))
+            .then(context => runTest(timeout, createError)(middlewares)(context)(name, tos)
+              .then(returnPrevious(() =>
+                asyncReduce(afterEaches, context, (prev, ae) => p(ae, `${name} afterEach hook`)(prev))
+              ))
+            )
+          : Promise.resolve(createSkip(name))
         : typeof tos === 'object'
-          ? _runCreatorCreator(createInitContext, timeout, createError, beforeEaches, afterEaches, name)(middlewares)(tos)
+          ? _runCreatorCreator(createInitContext, timeout, createError, beforeEaches, afterEaches, name)(middlewares)(tos, skip, only)
           : Promise.resolve(
             createFail(name, 'All test object values must be a function (test) or an object (suite)')
           )
@@ -155,4 +164,5 @@ module.exports = {
   ROOT_SUITE,
   PASS,
   FAIL,
+  SKIP,
 }

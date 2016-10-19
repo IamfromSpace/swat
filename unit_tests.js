@@ -1,5 +1,5 @@
 // TODO:  This should always use the most stable version
-const { _runCreatorCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL } = require('./swat.js');
+const { _runCreatorCreator, assertMany, ROOT_SUITE, SUITE, TEST, PASS, FAIL, SKIP } = require('./swat.js');
 const fp = require('lodash/fp');
 
 const ERROR = 'ERROR';
@@ -195,7 +195,7 @@ module.exports = {
         ,
       ]));
     },
-    'no middlewares, no prevBeforeEaches, no prevAfterEaches, test hooks, basic passing/failing/incorrect type tests, timeout test, no suites, no suiteName': (c) => {
+    'no middlewares, no prevBeforeEaches, no prevAfterEaches, test hooks, basic passing/failing/incorrect type tests, timeout test, a default skip test, no suites, no suiteName': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
@@ -204,6 +204,10 @@ module.exports = {
           name: 'times out',
           result: FAIL,
           error: new MockError('times out timed out in ' + TEST_TIMEOUT + 'ms.'),
+        }, {
+          type: TEST,
+          name: 'skip-skipped by default',
+          result: SKIP,
         }, {
           type: TEST,
           name: 'wrong type',
@@ -235,6 +239,7 @@ module.exports = {
         'always passes': c.basicPassingTest,
         'always fails': c.basicFailingTest,
         'wrong type': 'STRING',
+        'skip-skipped by default': c.basicPassingTest,
         'times out': c.timeoutPromiseTest,
         afterEach: c.mockAfterEach1,
         after: c.mockAfter,
@@ -246,7 +251,7 @@ module.exports = {
         ,
       ]));
     },
-    'no middlewares, prevBeforeEaches, prevAfterEaches, no test hooks, and basic passing test': (c) => {
+    'no middlewares, prevBeforeEaches, prevAfterEaches, no test hooks, and basic passing test with a custom only regex': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
@@ -255,6 +260,10 @@ module.exports = {
           type: SUITE,
           name: 'a suite',
           tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+            type: TEST,
+            name: 'custom only-runs by default',
+            result: SKIP,
+          }, {
             type: TEST,
             name: 'always passes',
             result: PASS,
@@ -271,16 +280,17 @@ module.exports = {
         // START TESTS UNDER TEST
         'a suite': {
           'always passes': c.basicPassingTest,
+          'custom only-runs by default': c.basicPassingTest,
         }
         // END TESTS UNDER TEST
-      }).then(actual => assertMany([
+      }, null, /^always passes$/).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
         fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
           { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
         ,
       ]));
     },
-    'middlewares, prevBeforeEaches, prevAfterEaches, beforeEach and afterEach hooks, one suite with promise passing test': (c) => {
+    'middlewares, prevBeforeEaches, prevAfterEaches, beforeEach and afterEach hooks, one suite with promise passing test and a custom skip': (c) => {
       const expected = {
         type: ROOT_SUITE,
         name: void(0), // TODO: remove the need for this undefined key.
@@ -289,6 +299,10 @@ module.exports = {
           type: SUITE,
           name: 'a suite',
           tests: [{ // TODO: Order of this array is not guaranteed, need to allow for that
+            type: TEST,
+            name: 'custom-skip-not skipped by default',
+            result: SKIP,
+          }, {
             type: TEST,
             name: 'always passes',
             result: PASS,
@@ -311,9 +325,10 @@ module.exports = {
         afterEach: c.mockAfterEach2,
         'a suite': {
           'always passes': c.promisePassingTest,
+          'custom-skip-not skipped by default': c.basicPassingTest,
         }
         // END TESTS UNDER TEST
-      }).then(actual => assertMany([
+      }, /^custom-skip-/).then(actual => assertMany([
         fp.isEqual(expected)(actual) || { expected, actual },
         fp.isEqual(c.contextTrackers)(expectedContextTrackers) ||
           { actualContextTrackers: c.contextTrackers, expectedContextTrackers }
