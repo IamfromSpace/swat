@@ -1,6 +1,6 @@
 const swat = require('./swat.js');
 const util = require('util');
 const unitTests = require('./unit_tests.js');
-const { nodeReport } = require('./spec-reporter.js');
+const nodeReporter = require('./node-reporter.js');
 
-swat.run(unitTests).then(nodeReport).then(console.log).catch(console.log);
+swat.run(unitTests).then(nodeReporter).then(console.log).catch(console.log);

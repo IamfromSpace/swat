@@ -45,5 +45,5 @@ const suiteToMsgs = suite => _suiteToMsgs({ depth: 0, msgs: [] }, suite).msgs;
 
 module.exports = {
   suiteToMsgs,
-  nodeReport: suite => suiteToMsgs(suite).join('\n'),
+  specReporter: suite => suiteToMsgs(suite).join('\n'),
 }
