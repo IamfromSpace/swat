@@ -144,12 +144,19 @@ const getFailedTests = suite => suite.suites.reduce(
   suite.tests.filter(t => t.result === FAIL)
 );
 
+const _countTests = (count, { tests, suites }) =>
+  suites.reduce(_countTests, count + tests.length)
+;
+
+const countTests = suite => _countTests(0, suite);
+
 module.exports = {
   _runCreatorCreator,
   runCreator,
   run,
   assertMany,
   getFailedTests,
+  countTests,
   TEST,
   SUITE,
   ROOT_SUITE,
